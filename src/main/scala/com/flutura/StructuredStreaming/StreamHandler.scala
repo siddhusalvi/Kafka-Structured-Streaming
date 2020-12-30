@@ -4,6 +4,8 @@ import org.apache.log4j.LogManager
 import org.json.JSONObject
 import redis.clients.jedis.Jedis
 
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
+
 
 class SensorParamters{
   var id:String=null
@@ -14,36 +16,34 @@ class SensorParamters{
 
 object StreamHandler {
 
-  val propertiesPath = "src/main/resources/config.properties"
-  //Getting properties
-  val properties = PropertyMgr.getProperties(propertiesPath)
-
-  val jedis: Jedis = new Jedis(properties.getProperty("redisHost"),
-    properties.getProperty("redisPort").toInt)
-  jedis.auth(properties.getProperty("redisPassword"))
-  jedis.select(properties.getProperty("redisDbIndex","0").toInt)
-
-  //Setting up logger
-  val logger = LogManager.getLogger(properties.getProperty("logClass"))
-  logger.info("Stream handler class initialized")
 
   val idKey = "id"
   val vKey = "v"
   val tKey = "t"
 
+
+
   //Function to process stream
-  def processStream(streamData: String): Unit = {
-    logger.info("Processing Stream")
+  def processStream(streamData: String): ListBuffer[SensorParamters] = {
+      if(isJSONValid(streamData)){
+        return parseJson(streamData)
+      }
+    return new ListBuffer[SensorParamters]
+  }
+
+  //check json is valid or not
+  def isJSONValid(jsonStr: String): Boolean = {
     try {
-      new JSONObject(streamData)
-      parseJson(streamData)
+      new JSONObject(jsonStr)
+      true
     } catch {
-      case exception: Exception => logger.error("Invalid JSON file " + exception.printStackTrace())
+      case _: Exception => false
     }
   }
 
   //Function to parse json
-  def parseJson(jsonStr: String): Unit = {
+  def parseJson(jsonStr: String): ListBuffer[SensorParamters] = {
+    var arrbff = new ListBuffer[SensorParamters]
     try {
       //Getting single json object
       val jsonObj = new JSONObject(jsonStr)
@@ -57,12 +57,13 @@ object StreamHandler {
 
         //Fetching single JSON object
         val singleRecord = convertToSensorObject(jsonObj.getJSONObject(key))
-        writeToRedisDB(singleRecord)
+        arrbff.append(singleRecord)
       }
-
     } catch {
       case exception: Exception => println(exception.printStackTrace())
     }
+    println(arrbff)
+    arrbff
   }
 
   //Function to convert JSON into object
@@ -94,15 +95,15 @@ object StreamHandler {
 //      jedis.hsetnx(singleRecord.id, vKey, singleRecord.v)
 //      logger.debug("Record Written to the database")
     } catch {
-      case exception: Exception => logger.error(exception.printStackTrace())
+      case exception: Exception => println(exception.printStackTrace())
     }
   }
 
   //Function to close the database
   def close(): Unit = {
-    if(jedis != null){
-      jedis.close()
-    }
+//    if(jedis != null){
+//      jedis.close()
+//    }
   }
 
 }

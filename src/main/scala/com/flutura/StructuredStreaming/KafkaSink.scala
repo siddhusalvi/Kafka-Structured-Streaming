@@ -3,6 +3,8 @@ import java.util.Properties
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import org.apache.spark.sql.{ForeachWriter, Row}
 
+import scala.collection.mutable.ListBuffer
+
 object KafkaSink
 {
 
@@ -17,23 +19,28 @@ object KafkaSink
   val results = new scala.collection.mutable.HashMap[String, String]
   var producer: KafkaProducer[String, String] = _
 
-
   def send :ForeachWriter[Row] = {
 
-    new ForeachWriter[Row] {
-      override def open(partitionId: Long,version: Long): Boolean = {
-        producer = new KafkaProducer(properties)
-        true
+      new ForeachWriter[Row] {
+        override def open(partitionId: Long, version: Long): Boolean = {
+          producer = new KafkaProducer(properties)
+          true
+        }
+
+        override def process(row: Row): Unit = {
+          val data = row.getString(0)
+          val arrbuffer: ListBuffer[SensorParamters] = StreamHandler.processStream(data)
+
+          arrbuffer.foreach(obj => producer.send(new ProducerRecord(topic, (obj.id+" "+obj.t+" "+obj.v)))
+          )
+
+        }
+
+        def close(errorOrNull: Throwable): Unit = {
+          producer.close()
+        }
       }
 
-      override def process(value: Row): Unit = {
-        producer.send(new ProducerRecord(topic, value.toString()))
-      }
-
-      def close(errorOrNull: Throwable): Unit = {
-        producer.close()
-      }
-    }
-  }
+}
 
 }
