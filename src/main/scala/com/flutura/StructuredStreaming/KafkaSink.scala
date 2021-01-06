@@ -1,46 +1,68 @@
 package com.flutura.StructuredStreaming
-import java.util.Properties
-import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
-import org.apache.spark.sql.{ForeachWriter, Row}
 
+import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
+import org.apache.log4j.LogManager
+import org.apache.spark.sql.{ForeachWriter, Row}
+import java.util.Properties
 import scala.collection.mutable.ListBuffer
 
-object KafkaSink
-{
+object KafkaSink {
 
+  val properties = PropertyManager.getProperties()
 
-  val properties = new Properties()
-  properties.put("bootstrap.servers", "localhost:9092")
-  properties.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer")
-  properties.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer")
+  //Setting up logger
+  val logger = LogManager.getLogger(properties.getProperty("logger"))
 
-  val topic="dataframe"
-  val servers="localhost:9092"
-  val results = new scala.collection.mutable.HashMap[String, String]
-  var producer: KafkaProducer[String, String] = _
+  val kafkaProperties = new Properties()
+  kafkaProperties.put("bootstrap.servers", properties.getProperty("kafka-host")+":"+properties.getProperty("kafka-port"))
+  kafkaProperties.put("key.serializer", properties.getProperty("kafka-key-serializer"))
+  kafkaProperties.put("value.serializer", properties.getProperty("kafka-value-serializer"))
+  val topic = properties.getProperty("kafka-producer-topic")
+  var producer: KafkaProducer[String, String] = new KafkaProducer(kafkaProperties)
 
-  def send :ForeachWriter[Row] = {
+  logger.info("KafkaSink object initialized")
 
-      new ForeachWriter[Row] {
-        override def open(partitionId: Long, version: Long): Boolean = {
-          producer = new KafkaProducer(properties)
-          true
-        }
-
-        override def process(row: Row): Unit = {
-          val data = row.getString(0)
-          val arrbuffer: ListBuffer[SensorParamters] = StreamHandler.processStream(data)
-
-          arrbuffer.foreach(obj => producer.send(new ProducerRecord(topic, (obj.id+" "+obj.t+" "+obj.v)))
-          )
-
-        }
-
-        def close(errorOrNull: Throwable): Unit = {
-          producer.close()
-        }
+  def send: ForeachWriter[Row] = {
+    logger.info("Starting kafkaSink.send() ")
+    new ForeachWriter[Row] {
+      override def open(partitionId: Long, version: Long): Boolean = {
+        true
       }
 
-}
+      //Overriding process to send data
+      override def process(row: Row): Unit = {
+
+        val indexOfValue = properties.getProperty("index-of-value").toInt
+        //Parsing value from row
+        val data = row.getString(indexOfValue)
+
+        //Parsing json to list of objects
+        val listBuffer: ListBuffer[SensorDataClass] = JsonHandler.toObjectList(data)
+
+        //Writing objects to the kafka
+        if (listBuffer != null) {
+          listBuffer.foreach(obj => {
+            if(obj != null) {
+              producer.send(new ProducerRecord(topic, (obj.id + " " + obj.t + " " + obj.v)))
+            }
+          })
+        }
+      }
+      override def close(errorOrNull: Throwable): Unit = {
+          if(errorOrNull != null){
+
+          logger.error(errorOrNull.printStackTrace())
+        }
+      }
+    }
+  }
+
+  //Releasing the resources
+  def close():Unit={
+    if(producer!= null){
+      logger.info("Closing kafka Producer")
+      producer.close()
+    }
+  }
 
 }
