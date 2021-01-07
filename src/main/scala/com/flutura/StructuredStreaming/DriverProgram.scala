@@ -1,6 +1,5 @@
 package com.flutura.StructuredStreaming
 import org.apache.log4j.{LogManager, Logger}
-
 object DriverProgram {
   def main(args: Array[String]): Unit = {
     var logger: Logger = null

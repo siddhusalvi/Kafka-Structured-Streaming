@@ -4,8 +4,6 @@ import org.apache.log4j.LogManager
 import org.apache.spark.sql.streaming.OutputMode
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
-import java.util.Properties
-
 class StructuredStearmingConsumer() {
 
   //Getting properties
@@ -24,9 +22,9 @@ class StructuredStearmingConsumer() {
   val kafkaTopic = properties.getProperty("kafka-topic")
   val kafkaServers = properties.getProperty("kafka-host") + ":" + properties.getProperty("kafka-port")
   val kafkaOffset = properties.getProperty("kafka-offset")
-  var dataframe:DataFrame=null
+  var dataframe: DataFrame = null
 
-  logger.info("Setup properties for kafka consumer")
+  logger.info("Done setup properties for kafka consumer")
 
   //Starting consumer
   def start(): Unit = {
